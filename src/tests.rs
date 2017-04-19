@@ -8,7 +8,7 @@ fn test_nonexistant_device() {
 
 #[cfg(feature = "vcan_tests")]
 mod vcan_tests {
-    use ::{CanFrame, CanInterface, CanSocket, ERR_MASK_ALL, ERR_MASK_NONE};
+    use ::{CanFrame, CanInterface, CanSocket, CanBCMSocket, ERR_MASK_ALL, ERR_MASK_NONE};
     use std::time;
     use ::ShouldRetry;
 
@@ -43,5 +43,21 @@ mod vcan_tests {
     fn vcan0_set_down() {
         let can_if = CanInterface::open("vcan0").unwrap();
         can_if.bring_down().unwrap();
+    }
+
+    #[test]
+    fn vcan0_bcm_filter() {
+        let cbs = CanBCMSocket::open("vcan0").unwrap();
+        let ival = time::Duration::from_millis(1);
+        cbs.filter_id(0x123, ival, ival).unwrap();
+
+        let cs = CanSocket::open("vcan0").unwrap();
+        let frame = CanFrame::new(0x123, &[], true, false).unwrap();
+        cs.write_frame(&frame).unwrap();
+
+        // TODO this currently blocks the tests and requires a manual
+        // cansend vcan0 123#1122334455667788
+        let msghead = cbs.read_frames().unwrap();
+        assert!(msghead.frames()[0].id() == 0x123);
     }
 }
