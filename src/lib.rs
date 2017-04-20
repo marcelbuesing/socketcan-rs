@@ -731,6 +731,7 @@ impl BcmMsgHead {
     }
 }
 
+/// A socket for a CAN device, specifically for broadcast manager operations.
 #[derive(Debug)]
 pub struct CanBCMSocket {
     fd: c_int,
@@ -738,11 +739,18 @@ pub struct CanBCMSocket {
 
 impl CanBCMSocket {
 
+    /// Open a named CAN device.
+    ///
+    /// Usually the more common case, opens a socket can device by name, such
+    /// as "vcan0" or "socan0".
     pub fn open(ifname: &str) -> Result<CanBCMSocket, CanSocketOpenError> {
         let if_index = if_nametoindex(ifname)?;
         CanBCMSocket::open_if(if_index)
     }
 
+    /// Open CAN device by interface number.
+    ///
+    /// Opens a CAN device by kernel interface number.
     pub fn open_if(if_index: c_uint) -> Result<CanBCMSocket, CanSocketOpenError> {
 
         // open socket
@@ -776,6 +784,17 @@ impl CanBCMSocket {
         Ok(CanBCMSocket { fd: sock_fd })
     }
 
+    fn close(&mut self) -> io::Result<()> {
+        unsafe {
+            let rv = close(self.fd);
+            if rv != -1 {
+                return Err(io::Error::last_os_error());
+            }
+        }
+        Ok(())
+    }
+
+    /// Create a content filter subscription, filtering can frames by can_id.
     pub fn filter_id(&self, can_id: c_uint, ival1: time::Duration, ival2: time::Duration) -> io::Result<()>  {
         let _ival1 = c_timeval_new(ival1);
         let _ival2 = c_timeval_new(ival2);;
@@ -835,5 +854,11 @@ impl CanBCMSocket {
         }
 
         Ok(msg)
+    }
+}
+
+impl Drop for CanBCMSocket {
+    fn drop(&mut self) {
+        self.close().ok();  // ignore result
     }
 }
