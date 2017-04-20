@@ -795,7 +795,7 @@ impl CanBCMSocket {
     }
 
     /// Create a content filter subscription, filtering can frames by can_id.
-    pub fn filter_id(&self, can_id: c_uint, ival1: time::Duration, ival2: time::Duration) -> io::Result<()>  {
+    pub fn filter_id(&self, can_id: c_uint, ival1: time::Duration, ival2: time::Duration) -> io::Result<()> {
         let _ival1 = c_timeval_new(ival1);
         let _ival2 = c_timeval_new(ival2);;
         let frames = [CanFrame::new(0x0, &[], false, false).unwrap(); 4];
@@ -815,6 +815,36 @@ impl CanBCMSocket {
             let msg_ptr = msg as *const BcmMsgHead;
             write(self.fd, msg_ptr as *const c_void, size_of::<BcmMsgHead>())
         };
+
+        let expected_size = size_of::<BcmMsgHead>() - size_of::<[CanFrame;4]>();
+        if write_rv as usize != expected_size {
+            let msg = format!("Wrote {} but expected {}", write_rv, expected_size);
+            return Err(Error::new(ErrorKind::WriteZero, msg));
+        }
+
+        Ok(())
+    }
+
+    /// Remove a content filter subscription.
+    pub fn filter_delete(&self, can_id: c_uint) -> io::Result<()> {
+        let frames = [CanFrame::new(0x0, &[], false, false).unwrap(); 4];
+
+        let msg = &BcmMsgHead {
+            _opcode: RX_DELETE,
+            _flags: 0,
+            _count: 0,
+            _ival1: c_timeval_new(time::Duration::new(0, 0)),
+            _ival2: c_timeval_new(time::Duration::new(0, 0)),
+            _can_id: can_id,
+            _nframes: 0,
+            _frames: frames
+        };
+
+        let write_rv = unsafe {
+            let msg_ptr = msg as *const BcmMsgHead;
+            write(self.fd, msg_ptr as *const c_void, size_of::<BcmMsgHead>())
+        };
+
         let expected_size = size_of::<BcmMsgHead>() - size_of::<[CanFrame;4]>();
         if write_rv as usize != expected_size {
             let msg = format!("Wrote {} but expected {}", write_rv, expected_size);

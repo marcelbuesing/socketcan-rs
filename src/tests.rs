@@ -60,4 +60,20 @@ mod vcan_tests {
         let msghead = cbs.read_frames().unwrap();
         assert!(msghead.frames()[0].id() == 0x123);
     }
+
+    #[test]
+    fn vcan0_bcm_filter_delete() {
+        let cbs = CanBCMSocket::open("vcan0").unwrap();
+        let ival = time::Duration::from_millis(1);
+        cbs.filter_id(0x123, ival, ival).unwrap();
+
+        cbs.filter_delete(0x123).unwrap();
+    }
+
+    #[test]
+    fn vcan0_bcm_filter_delete_err() {
+        let cbs = CanBCMSocket::open("vcan0").unwrap();
+        assert!(cbs.filter_delete(0x124).is_err())
+    }
+
 }
