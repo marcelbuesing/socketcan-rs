@@ -721,9 +721,40 @@ pub struct BcmMsgHead {
     _can_id: u32,
     /// number of can frames appended to the message head
     _nframes: u32,
+    // TODO figure out how why C adds a padding here?
+    _pad: u32,
     // TODO figure out how to allocate only nframes instead of MAX_NFRAMES
     /// buffer of CAN frames
     _frames: [CanFrame; MAX_NFRAMES as usize],
+}
+
+/// BcmMsgHeadFrameLess
+///
+/// Head of messages to and from the broadcast manager see _pad fields for differences
+/// to BcmMsgHead
+#[repr(C)]
+pub struct BcmMsgHeadFrameLess {
+    _opcode: u32,
+    _flags: u32,
+    /// number of frames to send before changing interval
+    _count: u32,
+    /// interval for the first count frames
+    _ival1: timeval,
+    /// interval for the following frames
+    _ival2: timeval,
+    _can_id: u32,
+    /// number of can frames appended to the message head
+    _nframes: u32,
+    /// Workaround Rust ZST has a size of 0 for frames, in
+    /// C the BcmMsgHead struct contains an Array that although it has
+    /// a length of zero still takes n (4) bytes.
+    _pad: u32,
+}
+
+#[repr(C)]
+pub struct TxMsg {
+    _msg_head: BcmMsgHeadFrameLess,
+    _frames: [CanFrame; 4 as usize],
 }
 
 impl BcmMsgHead {
@@ -802,28 +833,33 @@ impl CanBCMSocket {
     pub fn filter_id(&self, can_id: c_uint, ival1: time::Duration, ival2: time::Duration) -> io::Result<()> {
         let _ival1 = c_timeval_new(ival1);
         let _ival2 = c_timeval_new(ival2);;
-        let frames = [CanFrame::new(0x0, &[], false, false).unwrap(); MAX_NFRAMES as usize];
+        let empty_frames = [CanFrame::new(0x0, &[], false, false).unwrap(); 0 as usize];
+        let frames = [CanFrame::new(0x0, &[], false, false).unwrap(); 4 as usize];
 
-        let msg = &BcmMsgHead {
+
+        let msg = BcmMsgHeadFrameLess {
             _opcode: RX_SETUP,
             _flags: SETTIMER | RX_FILTER_ID,
             _count: 0,
+            _pad: 0,
             _ival1: _ival1,
             _ival2: _ival2,
             _can_id: can_id,
             _nframes: 0,
-            _frames: frames
+        };
+
+        let tx_msg = &TxMsg {
+            _msg_head: msg,
+            _frames: frames,
         };
 
         let write_rv = unsafe {
-            let msg_ptr = msg as *const BcmMsgHead;
-            write(self.fd, msg_ptr as *const c_void, size_of::<BcmMsgHead>())
+            let tx_msg_ptr = tx_msg as *const TxMsg;
+            write(self.fd, tx_msg_ptr as *const c_void, size_of::<TxMsg>())
         };
 
-        let expected_size = size_of::<BcmMsgHead>() - size_of::<[CanFrame; MAX_NFRAMES as usize]>();
-        if write_rv as usize != expected_size {
-            let msg = format!("Wrote {} but expected {}", write_rv, expected_size);
-            return Err(Error::new(ErrorKind::WriteZero, msg));
+        if write_rv < 0 {
+            return Err(Error::new(ErrorKind::WriteZero, io::Error::last_os_error()));
         }
 
         Ok(())
@@ -841,6 +877,7 @@ impl CanBCMSocket {
             _ival2: c_timeval_new(time::Duration::new(0, 0)),
             _can_id: can_id,
             _nframes: 0,
+            _pad: 0,
             _frames: frames
         };
 
@@ -872,6 +909,7 @@ impl CanBCMSocket {
             _ival2: ival2,
             _can_id: 0,
             _nframes: 0,
+            _pad: 0,
             _frames: frames
         };
 
