@@ -16,5 +16,8 @@ netlink-rs = { git = "https://github.com/mbr/netlink-rs", rev = "01cba6fcc7b1191
 nix = "^0.5"
 try_from = "0.2.0"
 
+[build-dependencies]
+bindgen = "0.30.0"
+
 [features]
 vcan_tests = []

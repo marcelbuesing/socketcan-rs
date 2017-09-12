@@ -58,7 +58,9 @@ mod vcan_tests {
         // TODO this currently blocks the tests and requires a manual
         // cansend vcan0 123#1122334455667788
         let msghead = cbs.read_frames().unwrap();
-        assert!(msghead.frames()[0].id() == 0x123);
+        unsafe {
+            assert!(msghead.frames.as_slice(1)[0].can_id as u32 == 0x123);
+        }
     }
 
     #[test]
