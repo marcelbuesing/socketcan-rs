@@ -46,6 +46,8 @@
 // clippy: do not warn about things like "SocketCAN" inside the docs
 #![cfg_attr(feature = "cargo-clippy", allow(doc_markdown))]
 
+#[macro_use]
+extern crate bitflags;
 extern crate byte_conv;
 extern crate futures;
 extern crate hex;
@@ -148,14 +150,18 @@ const SOCK_DGRAM: c_int = 2;
 // get timestamp in a struct timespec (ns accuracy)
 const SIOCGSTAMPNS: c_int = 0x8907;
 
-/// if set, indicate 29 bit extended format
-pub const EFF_FLAG: u32 = 0x80000000;
+bitflags! {
+    pub struct FrameFlags: u32 {
+        /// if set, indicate 29 bit extended format
+        const EFF_FLAG = 0x80000000;
 
-/// remote transmission request flag
-pub const RTR_FLAG: u32 = 0x40000000;
+        /// remote transmission request flag
+        const RTR_FLAG = 0x40000000;
 
-/// error flag
-pub const ERR_FLAG: u32 = 0x20000000;
+        /// error flag
+        const ERR_FLAG = 0x20000000;
+    }
+}
 
 /// valid bits in standard frame id
 pub const SFF_MASK: u32 = 0x000007ff;
@@ -574,16 +580,16 @@ impl CanFrame {
 
         // set EFF_FLAG on large message
         if id > SFF_MASK {
-            _id |= EFF_FLAG;
+            _id |= FrameFlags::EFF_FLAG.bits();
         }
 
 
         if rtr {
-            _id |= RTR_FLAG;
+            _id |= FrameFlags::RTR_FLAG.bits();
         }
 
         if err {
-            _id |= ERR_FLAG;
+            _id |= FrameFlags::ERR_FLAG.bits();
         }
 
         let mut full_data = [0; 8];
@@ -622,19 +628,19 @@ impl CanFrame {
     /// Check if frame uses 29 bit extended frame format
     #[inline]
     pub fn is_extended(&self) -> bool {
-        self._id & EFF_FLAG != 0
+        self._id & FrameFlags::EFF_FLAG.bits() != 0
     }
 
     /// Check if frame is an error message
     #[inline]
     pub fn is_error(&self) -> bool {
-        self._id & ERR_FLAG != 0
+        self._id & FrameFlags::ERR_FLAG.bits() != 0
     }
 
     /// Check if frame is a remote transmission request
     #[inline]
     pub fn is_rtr(&self) -> bool {
-        self._id & RTR_FLAG != 0
+        self._id & FrameFlags::RTR_FLAG.bits() != 0
     }
 
     /// A slice into the actual data. Slice will always be <= 8 bytes in length
@@ -896,11 +902,13 @@ impl CanBCMSocket {
         can_id: c_uint,
         ival1: time::Duration,
         ival2: time::Duration,
+        frame_flags: FrameFlags,
     ) -> io::Result<()> {
         let _ival1 = c_timeval_new(ival1);
         let _ival2 = c_timeval_new(ival2);
 
         let frames = [CanFrame::new(0x0, &[], false, false).unwrap(); MAX_NFRAMES as usize];
+
         let msg = BcmMsgHeadFrameLess {
             _opcode: RX_SETUP,
             _flags: SETTIMER | RX_FILTER_ID,
@@ -909,7 +917,7 @@ impl CanBCMSocket {
             _pad: 0,
             _ival1: _ival1,
             _ival2: _ival2,
-            _can_id: can_id | EFF_FLAG,
+            _can_id: can_id | frame_flags.bits(),
             _nframes: 0,
         };
 
