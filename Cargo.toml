@@ -8,6 +8,7 @@ repository = "https://github.com/mbr/socketcan-rs"
 version = "2.0.0"
 
 [dependencies]
+bitflags = "1.0.1"
 byte_conv = "0.1.1"
 futures = "0.1.16"
 hex = "^0.2"

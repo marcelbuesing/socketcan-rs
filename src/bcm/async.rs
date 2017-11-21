@@ -12,7 +12,7 @@ use std::mem::size_of;
 use std::io::{Error, ErrorKind};
 use tokio_core::reactor::{Handle, PollEvented};
 
-use {CanAddr, CanFrame, CanSocketOpenError, AF_CAN, EFF_FLAG, PF_CAN, SOCK_DGRAM, CAN_BCM,
+use {CanAddr, CanFrame, CanSocketOpenError, AF_CAN, FrameFlags, PF_CAN, SOCK_DGRAM, CAN_BCM,
      c_timeval_new};
 
 pub const MAX_NFRAMES: u32 = 256;
@@ -224,6 +224,7 @@ impl CanBCMSocket {
         can_id: c_uint,
         ival1: time::Duration,
         ival2: time::Duration,
+        frame_flags: FrameFlags,
     ) -> io::Result<()> {
         let _ival1 = c_timeval_new(ival1);
         let _ival2 = c_timeval_new(ival2);
@@ -237,7 +238,7 @@ impl CanBCMSocket {
             _pad: 0,
             _ival1: _ival1,
             _ival2: _ival2,
-            _can_id: can_id | EFF_FLAG,
+            _can_id: can_id | frame_flags.bits(),
             _nframes: 0,
         };
 
@@ -285,8 +286,9 @@ impl CanBCMSocket {
         can_id: c_uint,
         ival1: time::Duration,
         ival2: time::Duration,
+        frame_flags: FrameFlags,
     ) -> io::Result<BcmFrameStream> {
-        self.filter_id(can_id, ival1, ival2)?;
+        self.filter_id(can_id, ival1, ival2, frame_flags)?;
         self.incoming_frames(handle)
     }
 
