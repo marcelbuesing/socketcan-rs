@@ -148,6 +148,7 @@ const SOCK_DGRAM: c_int = 2;
 const SIOCGSTAMPNS: c_int = 0x8907;
 
 bitflags! {
+    #[derive(Default)]
     pub struct FrameFlags: u32 {
         /// if set, indicate 29 bit extended format
         const EFF_FLAG = 0x80000000;
