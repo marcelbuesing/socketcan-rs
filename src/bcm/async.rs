@@ -2,6 +2,7 @@ use libc::{c_int, c_short, c_void, c_uint, socket, fcntl, close, connect, sockad
            timeval, F_SETFL, O_NONBLOCK};
 
 use futures;
+use futures::Stream;
 use mio::{Evented, Ready, Poll, PollOpt, Token};
 use mio::unix::EventedFd;
 use nix::net::if_::if_nametoindex;
@@ -149,6 +150,8 @@ pub struct CanBCMSocket {
     pub fd: c_int,
 }
 
+pub type BcmFrameStream = Box<Stream<Item = CanFrame, Error = io::Error>>;
+
 impl CanBCMSocket {
     /// Open a named CAN device non blocking.
     ///
@@ -253,6 +256,98 @@ impl CanBCMSocket {
         }
 
         Ok(())
+    }
+
+    ///
+    /// Combination of `CanBCMSocket::filter_id` and `CanBCMSocket::incoming_frames`.
+    /// ```
+    /// extern crate tokio_core;
+    /// extern crate socketcan;
+    ///
+    /// use futures::stream::Stream;
+    /// use self::tokio_core::reactor::Core;
+    /// use std::time;
+    /// use socketcan::bcm::async::*;
+    ///
+    /// let mut core = Core::new().unwrap();
+    /// let ival = time::Duration::from_millis(1);
+    /// let socket = CanBCMSocket.open_nb("vcan0").unwrap();
+    /// socket.filter_id_incoming_frames(&core.handle(), 0x123, ival, ival).unwrap()
+    ///       .for_each(|frame| {
+    ///          println!("Frame {:?}", frame);
+    ///          Ok(())
+    ///        });
+    /// ```
+    ///
+    pub fn filter_id_incoming_frames(
+        self,
+        handle: &Handle,
+        can_id: c_uint,
+        ival1: time::Duration,
+        ival2: time::Duration,
+    ) -> io::Result<BcmFrameStream> {
+        self.filter_id(can_id, ival1, ival2)?;
+        self.incoming_frames(handle)
+    }
+
+    ///
+    /// Stream of incoming BcmMsgHeads that apply to the filter criteria.
+    /// ```
+    /// extern crate tokio_core;
+    /// extern crate socketcan;
+    ///
+    /// use futures::stream::Stream;
+    /// use self::tokio_core::reactor::Core;
+    /// use std::time;
+    /// use socketcan::bcm::async::*;
+    ///
+    /// let mut core = Core::new().unwrap();
+    /// let socket = CanBCMSocket.open_nb("vcan0").unwrap();
+    /// let ival = time::Duration::from_millis(1);
+    /// socket.filter_id(0x123, ival, ival).unwrap();
+    /// socket.incoming_msg(&core.handle()).unwrap()
+    ///       .for_each(|bcm_msg_head| {
+    ///          println!("BcmMsgHead {:?}", bcm_msg_head);
+    ///          Ok(())
+    ///        });
+    /// ```
+    ///
+    pub fn incoming_msg(self, handle: &Handle) -> io::Result<BcmStream> {
+        BcmStream::from(self, handle)
+    }
+
+    ///
+    /// Stream of incoming frames that apply to the filter criteria.
+    /// This unpacks the
+    /// ```
+    /// extern crate tokio_core;
+    /// extern crate socketcan;
+    ///
+    /// use futures::stream::Stream;
+    /// use self::tokio_core::reactor::Core;
+    /// use std::time;
+    /// use socketcan::bcm::async::*;
+    ///
+    /// let mut core = Core::new().unwrap();
+    /// let socket = CanBCMSocket.open_nb("vcan0").unwrap();
+    /// let ival = time::Duration::from_millis(1);
+    /// socket.filter_id(0x123, ival, ival).unwrap();
+    /// socket.incoming_frames(&core.handle()).unwrap()
+    ///       .for_each(|frame| {
+    ///          println!("Frame {:?}", frame);
+    ///          Ok(())
+    ///        });
+    /// ```
+    ///
+    pub fn incoming_frames(self, handle: &Handle) -> io::Result<BcmFrameStream> {
+        let stream = BcmStream::from(self, handle)?;
+        let s = stream
+            .map(move |bcm_msg_head| {
+                let v: Vec<CanFrame> = bcm_msg_head.frames().to_owned();
+                futures::stream::iter_ok::<_, io::Error>(v)
+            })
+            .flatten();
+        Ok(Box::new(s))
     }
 
     /// Remove a content filter subscription.

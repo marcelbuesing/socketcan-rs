@@ -10,12 +10,11 @@ fn test_nonexistant_device() {
 mod vcan_tests {
     extern crate futures;
     extern crate tokio_core;
-    extern crate tokio_io;
 
     use futures::stream::Stream;
     use self::tokio_core::reactor::Core;
     use {CanFrame, CanInterface, CanSocket, ERR_MASK_ALL, ERR_MASK_NONE};
-    use bcm::async::{BcmListener, CanBCMSocket};
+    use bcm::async::*;
     use std::time;
     use ShouldRetry;
 
@@ -64,7 +63,7 @@ mod vcan_tests {
 
     #[test]
     fn vcan0_bcm_filter() {
-        let cbs = CanBCMSocket::open("vcan0").unwrap();
+        let cbs = CanBCMSocket::open_nb("vcan0").unwrap();
         let ival = time::Duration::from_millis(1);
         cbs.filter_id(0x123, ival, ival).unwrap();
 
@@ -74,7 +73,7 @@ mod vcan_tests {
 
         // TODO this currently blocks the tests and requires a manual
         // cansend vcan0 123#1122334455667788
-        let msghead = cbs.read_frames().unwrap();
+        let msghead = cbs.read_msg().unwrap();
         assert!(msghead.frames()[0].id() == 0x123);
     }
 
@@ -101,13 +100,56 @@ mod vcan_tests {
         let ival = time::Duration::from_millis(1);
         cbs.filter_id(0x123, ival, ival).unwrap();
 
-        let cl = BcmListener::from(cbs, &core.handle()).unwrap();
+        let cl = BcmStream::from(cbs, &core.handle()).unwrap();
         let msg_stream = cl.for_each(|msg_head| {
             print!("MSG HEAD {:?}", msg_head.can_id());
             Ok(())
         });
 
         core.run(msg_stream).unwrap();
-        println!("Done Done");
+    }
+
+    #[test]
+    fn vcan0_bcm_incoming_msg() {
+        let mut core = Core::new().unwrap();
+        let cbs = CanBCMSocket::open_nb("vcan0").unwrap();
+        let ival = time::Duration::from_millis(1);
+        cbs.filter_id(0x123, ival, ival).unwrap();
+        let msg_stream = cbs.incoming_msg(&core.handle()).unwrap().for_each(
+            |msg_head| {
+                print!("MSG HEAD {:?}", msg_head.can_id());
+                Ok(())
+            },
+        );
+        core.run(msg_stream).unwrap();
+    }
+
+    #[test]
+    fn vcan0_bcm_incoming_frames() {
+        let mut core = Core::new().unwrap();
+        let cbs = CanBCMSocket::open_nb("vcan0").unwrap();
+        let ival = time::Duration::from_millis(1);
+        cbs.filter_id(0x123, ival, ival).unwrap();
+        let frame_stream = cbs.incoming_frames(&core.handle()).unwrap().for_each(
+            |frame| {
+                print!("Frame {:?}", frame);
+                Ok(())
+            },
+        );
+        core.run(frame_stream).unwrap();
+    }
+
+    #[test]
+    fn vcan0_bcm_filter_id_incoming_frames() {
+        let mut core = Core::new().unwrap();
+        let cbs = CanBCMSocket::open_nb("vcan0").unwrap();
+        let ival = time::Duration::from_millis(1);
+        let frame_stream = cbs.filter_id_incoming_frames(&core.handle(), 0x123, ival, ival)
+            .unwrap()
+            .for_each(|frame| {
+                print!("Frame {:?}", frame);
+                Ok(())
+            });
+        core.run(frame_stream).unwrap();
     }
 }
