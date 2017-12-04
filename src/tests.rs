@@ -14,8 +14,8 @@ mod vcan_tests {
 
     use futures::stream::Stream;
     use self::tokio_core::reactor::Core;
-    use {BcmSocketListener, CanFrame, CanInterface, CanSocket, CanBCMSocket, ERR_MASK_ALL,
-         ERR_MASK_NONE};
+    use {CanFrame, CanInterface, CanSocket, ERR_MASK_ALL, ERR_MASK_NONE};
+    use bcm::async::{BcmListener, CanBCMSocket};
     use std::time;
     use ShouldRetry;
 
@@ -78,9 +78,10 @@ mod vcan_tests {
         assert!(msghead.frames()[0].id() == 0x123);
     }
 
+
     #[test]
     fn vcan0_bcm_filter_delete() {
-        let cbs = CanBCMSocket::open("vcan0").unwrap();
+        let cbs = CanBCMSocket::open_nb("vcan0").unwrap();
         let ival = time::Duration::from_millis(1);
         cbs.filter_id(0x123, ival, ival).unwrap();
 
@@ -89,22 +90,23 @@ mod vcan_tests {
 
     #[test]
     fn vcan0_bcm_filter_delete_err() {
-        let cbs = CanBCMSocket::open("vcan0").unwrap();
+        let cbs = CanBCMSocket::open_nb("vcan0").unwrap();
         assert!(cbs.filter_delete(0x124).is_err())
     }
 
     #[test]
     fn vcan0_bcm_non_blocking() {
         let mut core = Core::new().unwrap();
-        let cbs = CanBCMSocket::open("vcan0").unwrap();
+        let cbs = CanBCMSocket::open_nb("vcan0").unwrap();
         let ival = time::Duration::from_millis(1);
         cbs.filter_id(0x123, ival, ival).unwrap();
 
         let cl = BcmListener::from(cbs, &core.handle()).unwrap();
         let msg_stream = cl.for_each(|msg_head| {
-            print!("MSG HEAD {:?}", msg_head.datacan_id());
+            print!("MSG HEAD {:?}", msg_head.can_id());
             Ok(())
         });
+
         core.run(msg_stream).unwrap();
         println!("Done Done");
     }
