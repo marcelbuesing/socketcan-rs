@@ -146,26 +146,27 @@ impl BcmMsgHead {
 
 /// A socket for a CAN device, specifically for broadcast manager operations.
 #[derive(Debug)]
-pub struct CanBCMSocket {
+pub struct CanBCMSocket<'a> {
     pub fd: c_int,
+    pub handle: &'a Handle,
 }
 
 pub type BcmFrameStream = Box<Stream<Item = CanFrame, Error = io::Error>>;
 
-impl CanBCMSocket {
+impl<'a> CanBCMSocket<'a> {
     /// Open a named CAN device non blocking.
     ///
     /// Usually the more common case, opens a socket can device by name, such
     /// as "vcan0" or "socan0".
-    pub fn open_nb(ifname: &str) -> Result<CanBCMSocket, CanSocketOpenError> {
+    pub fn open_nb(ifname: &str, handle: &'a Handle) -> Result<CanBCMSocket<'a>, CanSocketOpenError> {
         let if_index = if_nametoindex(ifname)?;
-        CanBCMSocket::open_if_nb(if_index)
+        CanBCMSocket::open_if_nb(if_index, handle)
     }
 
     /// Open CAN device by interface number non blocking.
     ///
     /// Opens a CAN device by kernel interface number.
-    pub fn open_if_nb(if_index: c_uint) -> Result<CanBCMSocket, CanSocketOpenError> {
+    pub fn open_if_nb(if_index: c_uint, handle: &'a Handle) -> Result<CanBCMSocket<'a>, CanSocketOpenError> {
 
         // open socket
         let sock_fd;
@@ -205,7 +206,7 @@ impl CanBCMSocket {
             return Err(CanSocketOpenError::from(io::Error::last_os_error()));
         }
 
-        Ok(CanBCMSocket { fd: sock_fd })
+        Ok(CanBCMSocket { fd: sock_fd, handle: handle })
     }
 
     fn close(&mut self) -> io::Result<()> {
@@ -282,14 +283,13 @@ impl CanBCMSocket {
     ///
     pub fn filter_id_incoming_frames(
         self,
-        handle: &Handle,
         can_id: c_uint,
         ival1: time::Duration,
         ival2: time::Duration,
         frame_flags: FrameFlags,
     ) -> io::Result<BcmFrameStream> {
         self.filter_id(can_id, ival1, ival2, frame_flags)?;
-        self.incoming_frames(handle)
+        self.incoming_frames()
     }
 
     ///
@@ -314,8 +314,8 @@ impl CanBCMSocket {
     ///        });
     /// ```
     ///
-    pub fn incoming_msg(self, handle: &Handle) -> io::Result<BcmStream> {
-        BcmStream::from(self, handle)
+    pub fn incoming_msg(self) -> io::Result<BcmStream<'a>> {
+        BcmStream::from(self)
     }
 
     ///
@@ -341,8 +341,8 @@ impl CanBCMSocket {
     ///        });
     /// ```
     ///
-    pub fn incoming_frames(self, handle: &Handle) -> io::Result<BcmFrameStream> {
-        let stream = BcmStream::from(self, handle)?;
+    pub fn incoming_frames(self) -> io::Result<BcmFrameStream> {
+        let stream = BcmStream::from(self)?;
         let s = stream
             .map(move |bcm_msg_head| {
                 let v: Vec<CanFrame> = bcm_msg_head.frames().to_owned();
@@ -416,7 +416,7 @@ impl CanBCMSocket {
     }
 }
 
-impl Evented for CanBCMSocket {
+impl<'a> Evented for CanBCMSocket<'a> {
     fn register(
         &self,
         poll: &Poll,
@@ -442,14 +442,14 @@ impl Evented for CanBCMSocket {
     }
 }
 
-impl Drop for CanBCMSocket {
+impl<'a> Drop for CanBCMSocket<'a> {
     fn drop(&mut self) {
         self.close().ok(); // ignore result
     }
 }
 
-pub struct BcmStream {
-    io: PollEvented<CanBCMSocket>,
+pub struct BcmStream<'a> {
+    io: PollEvented<CanBCMSocket<'a>>,
 }
 
 pub trait IntoBcmStream {
@@ -459,14 +459,14 @@ pub trait IntoBcmStream {
     fn into_bcm(self) -> Result<Self::Stream, Self::Error>;
 }
 
-impl BcmStream {
-    pub fn from(bcm_socket: CanBCMSocket, handle: &Handle) -> io::Result<BcmStream> {
-        let io = try!(PollEvented::new(bcm_socket, handle));
+impl<'a> BcmStream<'a> {
+    pub fn from(bcm_socket: CanBCMSocket) -> io::Result<BcmStream> {
+        let io = try!(PollEvented::new(bcm_socket, bcm_socket.handle));
         Ok(BcmStream { io: io })
     }
 }
 
-impl futures::stream::Stream for BcmStream {
+impl<'a> futures::stream::Stream for BcmStream<'a> {
     type Item = BcmMsgHead;
     type Error = io::Error;
     fn poll(&mut self) -> futures::Poll<Option<Self::Item>, Self::Error> {
