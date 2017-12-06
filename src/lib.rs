@@ -893,7 +893,7 @@ impl CanBCMSocket {
             _pad: 0,
             _ival1: _ival1,
             _ival2: _ival2,
-            _can_id: can_id,
+            _can_id: can_id | EFF_FLAG,
             _nframes: 0,
         };
 
