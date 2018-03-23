@@ -10,7 +10,7 @@ pub use nl::CanInterface;
 use std::{io, slice, time};
 use std::mem::size_of;
 use std::io::{Error, ErrorKind};
-use tokio_core::reactor::{Handle, PollEvented};
+use tokio::reactor::{Handle, PollEvented};
 
 use {CanAddr, CanFrame, CanSocketOpenError, AF_CAN, FrameFlags, PF_CAN, SOCK_DGRAM, CAN_BCM,
      c_timeval_new};

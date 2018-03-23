@@ -56,7 +56,7 @@ extern crate libc;
 extern crate mio;
 extern crate netlink_rs;
 extern crate nix;
-extern crate tokio_core;
+extern crate tokio;
 extern crate try_from;
 
 mod err;
