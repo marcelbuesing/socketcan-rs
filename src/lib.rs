@@ -41,8 +41,6 @@
 //! is available through the `AsRawFd`, `IntoRawFd` and `FromRawFd`
 //! implementations.
 
-
-
 // clippy: do not warn about things like "SocketCAN" inside the docs
 #![cfg_attr(feature = "cargo-clippy", allow(doc_markdown))]
 
@@ -69,9 +67,9 @@ mod util;
 #[cfg(test)]
 mod tests;
 
-use libc::{c_int, c_short, c_void, c_uint, c_ulong, socket, SOCK_RAW, close, bind, sockaddr, read,
-           write, SOL_SOCKET, SO_RCVTIMEO, timespec, timeval, EINPROGRESS, SO_SNDTIMEO, time_t,
-           suseconds_t, fcntl, F_GETFL, F_SETFL, O_NONBLOCK};
+use libc::{bind, c_int, c_short, c_uint, c_ulong, c_void, close, fcntl, read, sockaddr, socket,
+           suseconds_t, time_t, timespec, timeval, write, EINPROGRESS, F_GETFL, F_SETFL,
+           O_NONBLOCK, SOCK_RAW, SOL_SOCKET, SO_RCVTIMEO, SO_SNDTIMEO};
 use itertools::Itertools;
 use nix::net::if_::if_nametoindex;
 pub use nl::CanInterface;
@@ -170,7 +168,6 @@ pub const EFF_MASK: u32 = 0x1fffffff;
 /// valid bits in error frame
 pub const ERR_MASK: u32 = 0x1fffffff;
 
-
 /// an error mask that will cause SocketCAN to report all errors
 pub const ERR_MASK_ALL: u32 = ERR_MASK;
 
@@ -227,7 +224,6 @@ impl error::Error for CanSocketOpenError {
         }
     }
 }
-
 
 #[derive(Debug, Copy, Clone)]
 /// Error that occurs when creating CAN packets
@@ -580,7 +576,6 @@ impl CanFrame {
         if id > SFF_MASK {
             _id |= FrameFlags::EFF_FLAG.bits();
         }
-
 
         if rtr {
             _id |= FrameFlags::RTR_FLAG.bits();

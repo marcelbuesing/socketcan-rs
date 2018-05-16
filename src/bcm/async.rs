@@ -1,9 +1,9 @@
-use libc::{c_int, c_short, c_void, c_uint, socket, fcntl, close, connect, sockaddr, read, write,
-           timeval, F_SETFL, O_NONBLOCK};
+use libc::{c_int, c_short, c_uint, c_void, close, connect, fcntl, read, sockaddr, socket, timeval,
+           write, F_SETFL, O_NONBLOCK};
 
 use futures;
 use futures::Stream;
-use mio::{Evented, Ready, Poll, PollOpt, Token};
+use mio::{Evented, Poll, PollOpt, Ready, Token};
 use mio::unix::EventedFd;
 use nix::net::if_::if_nametoindex;
 pub use nl::CanInterface;
@@ -12,8 +12,8 @@ use std::mem::size_of;
 use std::io::{Error, ErrorKind};
 use tokio::reactor::{Handle, PollEvented};
 
-use {CanAddr, CanFrame, CanSocketOpenError, AF_CAN, FrameFlags, PF_CAN, SOCK_DGRAM, CAN_BCM,
-     c_timeval_new};
+use {c_timeval_new, CanAddr, CanFrame, CanSocketOpenError, FrameFlags, AF_CAN, CAN_BCM, PF_CAN,
+     SOCK_DGRAM};
 
 pub const MAX_NFRAMES: u32 = 256;
 
@@ -166,7 +166,6 @@ impl CanBCMSocket {
     ///
     /// Opens a CAN device by kernel interface number.
     pub fn open_if_nb(if_index: c_uint) -> Result<CanBCMSocket, CanSocketOpenError> {
-
         // open socket
         let sock_fd;
         unsafe {
@@ -385,7 +384,6 @@ impl CanBCMSocket {
 
     /// Read a single can frame.
     pub fn read_msg(&self) -> io::Result<BcmMsgHead> {
-
         let ival1 = c_timeval_new(time::Duration::from_millis(0));
         let ival2 = c_timeval_new(time::Duration::from_millis(0));
         let frames = [CanFrame::new(0x0, &[], false, false).unwrap(); MAX_NFRAMES as usize];
@@ -412,7 +410,11 @@ impl CanBCMSocket {
         };
 
         let last_error = io::Error::last_os_error();
-        if count < 0 { Err(last_error) } else { Ok(msg) }
+        if count < 0 {
+            Err(last_error)
+        } else {
+            Ok(msg)
+        }
     }
 }
 
