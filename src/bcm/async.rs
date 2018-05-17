@@ -1,19 +1,25 @@
-use libc::{c_int, c_short, c_uint, c_void, close, connect, fcntl, read, sockaddr, socket, timeval,
-           write, F_SETFL, O_NONBLOCK};
+use libc::{
+    c_int, c_short, c_uint, c_void, close, connect, fcntl, read, sockaddr, socket, timeval, write,
+    F_SETFL, O_NONBLOCK,
+};
 
 use futures;
 use futures::Stream;
-use mio::{Evented, Poll, PollOpt, Ready, Token};
 use mio::unix::EventedFd;
+use mio::{Evented, Poll, PollOpt, Ready, Token};
 use nix::net::if_::if_nametoindex;
 pub use nl::CanInterface;
-use std::{io, slice, time};
-use std::mem::size_of;
+use std::collections::VecDeque;
+use std::fmt;
 use std::io::{Error, ErrorKind};
-use tokio::reactor::{Handle, PollEvented};
+use std::mem::size_of;
+use std::{io, slice, time};
+use tokio::reactor::PollEvented2;
 
-use {c_timeval_new, CanAddr, CanFrame, CanSocketOpenError, FrameFlags, AF_CAN, CAN_BCM, PF_CAN,
-     SOCK_DGRAM};
+use {
+    c_timeval_new, CanAddr, CanFrame, CanSocketOpenError, FrameFlags, AF_CAN, CAN_BCM, PF_CAN,
+    SOCK_DGRAM,
+};
 
 pub const MAX_NFRAMES: u32 = 256;
 
@@ -103,6 +109,12 @@ pub struct BcmMsgHead {
     _frames: [CanFrame; MAX_NFRAMES as usize],
 }
 
+impl fmt::Debug for BcmMsgHead {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "BcmMsgHead {{ _opcode: {}, _flags: {} , _count: {}, _ival1: {:?}, _ival2: {:?}, _can_id: {}, _nframes: {}}}", self._opcode, self._flags,              self._count, self._ival1.tv_sec, self._ival2.tv_sec, self._can_id, self._nframes)
+    }
+}
+
 /// BcmMsgHeadFrameLess
 ///
 /// Head of messages to and from the broadcast manager see _pad fields for differences
@@ -150,7 +162,62 @@ pub struct CanBCMSocket {
     pub fd: c_int,
 }
 
-pub type BcmFrameStream = Box<Stream<Item = CanFrame, Error = io::Error>>;
+pub struct BcmFrameStream {
+    io: PollEvented2<CanBCMSocket>,
+    frame_buffer: VecDeque<CanFrame>,
+}
+
+impl BcmFrameStream {
+    pub fn new(socket: CanBCMSocket) -> BcmFrameStream {
+        BcmFrameStream {
+            io: PollEvented2::new(socket),
+            frame_buffer: VecDeque::new(),
+        }
+    }
+}
+
+impl Stream for BcmFrameStream {
+    type Item = CanFrame;
+    type Error = io::Error;
+
+    fn poll(&mut self) -> futures::Poll<Option<Self::Item>, Self::Error> {
+        let ready = Ready::readable();
+
+        // Buffer still contains frames
+        // after testing this it looks like the recv_msg will never contain
+        // more than one msg, therefore the buffer is basically never filled
+        if let Some(frame) = self.frame_buffer.pop_front() {
+            return Ok(futures::Async::Ready(Some(frame)));
+        }
+
+        try_ready!(self.io.poll_read_ready(ready));
+
+        match self.io.get_ref().read_msg() {
+            Ok(n) => {
+                let mut frames = n.frames().to_vec();
+                if let Some(frame) = frames.pop() {
+                    if !frames.is_empty() {
+                        for frame in n.frames() {
+                            self.frame_buffer.push_back(*frame)
+                        }
+                    }
+                    Ok(futures::Async::Ready(Some(frame)))
+                } else {
+                    // This happens e.g. when a timed out msg is received
+                    self.io.clear_read_ready(ready);
+                    Ok(futures::Async::NotReady)
+                }
+            }
+            Err(e) => {
+                if e.kind() == io::ErrorKind::WouldBlock {
+                    self.io.clear_read_ready(ready);
+                    return Ok(futures::Async::NotReady);
+                }
+                return Err(e);
+            }
+        }
+    }
+}
 
 impl CanBCMSocket {
     /// Open a named CAN device non blocking.
@@ -261,94 +328,104 @@ impl CanBCMSocket {
     ///
     /// Combination of `CanBCMSocket::filter_id` and `CanBCMSocket::incoming_frames`.
     /// ```
-    /// extern crate tokio_core;
+    /// extern crate futures;
+    /// extern crate tokio;
     /// extern crate socketcan;
     ///
     /// use futures::stream::Stream;
-    /// use self::tokio_core::reactor::Core;
+    /// use tokio::prelude::*;
     /// use std::time;
+    /// use socketcan::FrameFlags;
     /// use socketcan::bcm::async::*;
     ///
-    /// let mut core = Core::new().unwrap();
     /// let ival = time::Duration::from_millis(1);
-    /// let socket = CanBCMSocket.open_nb("vcan0").unwrap();
-    /// socket.filter_id_incoming_frames(&core.handle(), 0x123, ival, ival).unwrap()
+    /// let socket = CanBCMSocket::open_nb("vcan0").unwrap();
+    /// let f = socket.filter_id_incoming_frames(0x123, ival, ival, FrameFlags::EFF_FLAG).unwrap()
     ///       .for_each(|frame| {
     ///          println!("Frame {:?}", frame);
     ///          Ok(())
     ///        });
+    /// tokio::run(f);
     /// ```
     ///
     pub fn filter_id_incoming_frames(
         self,
-        handle: &Handle,
         can_id: c_uint,
         ival1: time::Duration,
         ival2: time::Duration,
         frame_flags: FrameFlags,
     ) -> io::Result<BcmFrameStream> {
         self.filter_id(can_id, ival1, ival2, frame_flags)?;
-        self.incoming_frames(handle)
+        Ok(self.incoming_frames())
     }
 
     ///
     /// Stream of incoming BcmMsgHeads that apply to the filter criteria.
     /// ```
-    /// extern crate tokio_core;
+    /// extern crate futures;
+    /// extern crate tokio;
     /// extern crate socketcan;
     ///
     /// use futures::stream::Stream;
-    /// use self::tokio_core::reactor::Core;
+    /// use tokio::prelude::*;
     /// use std::time;
+    /// use socketcan::FrameFlags;
     /// use socketcan::bcm::async::*;
     ///
-    /// let mut core = Core::new().unwrap();
-    /// let socket = CanBCMSocket.open_nb("vcan0").unwrap();
+    /// let socket = CanBCMSocket::open_nb("vcan0").unwrap();
     /// let ival = time::Duration::from_millis(1);
-    /// socket.filter_id(0x123, ival, ival).unwrap();
-    /// socket.incoming_msg(&core.handle()).unwrap()
+    /// socket.filter_id(0x123, ival, ival, FrameFlags::EFF_FLAG).unwrap();
+    /// let f = socket.incoming_msg()
+    ///        .map_err(|err| {
+    ///            eprintln!("IO error {:?}", err)
+    ///        })
     ///       .for_each(|bcm_msg_head| {
     ///          println!("BcmMsgHead {:?}", bcm_msg_head);
     ///          Ok(())
     ///        });
+    /// tokio::run(f);
     /// ```
     ///
-    pub fn incoming_msg(self, handle: &Handle) -> io::Result<BcmStream> {
-        BcmStream::from(self, handle)
+    pub fn incoming_msg(self) -> BcmStream {
+        BcmStream::from(self)
     }
 
     ///
     /// Stream of incoming frames that apply to the filter criteria.
-    /// This unpacks the
     /// ```
-    /// extern crate tokio_core;
+    /// extern crate futures;
+    /// extern crate tokio;
     /// extern crate socketcan;
     ///
     /// use futures::stream::Stream;
-    /// use self::tokio_core::reactor::Core;
+    /// use tokio::prelude::*;
     /// use std::time;
+    /// use socketcan::FrameFlags;
     /// use socketcan::bcm::async::*;
     ///
-    /// let mut core = Core::new().unwrap();
-    /// let socket = CanBCMSocket.open_nb("vcan0").unwrap();
+    /// let socket = CanBCMSocket::open_nb("vcan0").unwrap();
     /// let ival = time::Duration::from_millis(1);
-    /// socket.filter_id(0x123, ival, ival).unwrap();
-    /// socket.incoming_frames(&core.handle()).unwrap()
+    /// socket.filter_id(0x123, ival, ival, FrameFlags::EFF_FLAG).unwrap();
+    /// let f = socket.incoming_frames()
+    ///        .map_err(|err| {
+    ///            eprintln!("IO error {:?}", err)
+    ///        })
     ///       .for_each(|frame| {
     ///          println!("Frame {:?}", frame);
     ///          Ok(())
     ///        });
+    /// tokio::run(f);
     /// ```
     ///
-    pub fn incoming_frames(self, handle: &Handle) -> io::Result<BcmFrameStream> {
-        let stream = BcmStream::from(self, handle)?;
-        let s = stream
-            .map(move |bcm_msg_head| {
-                let v: Vec<CanFrame> = bcm_msg_head.frames().to_owned();
-                futures::stream::iter_ok::<_, io::Error>(v)
-            })
-            .flatten();
-        Ok(Box::new(s))
+    pub fn incoming_frames(self) -> BcmFrameStream {
+        //        let stream = BcmStream::from(self);
+        //        stream
+        //            .map(move |bcm_msg_head| {
+        //                let v: Vec<CanFrame> = bcm_msg_head.frames().to_owned();
+        //                futures::stream::iter_ok::<_, io::Error>(v)
+        //            })
+        //            .flatten()
+        BcmFrameStream::new(self)
     }
 
     /// Remove a content filter subscription.
@@ -451,7 +528,7 @@ impl Drop for CanBCMSocket {
 }
 
 pub struct BcmStream {
-    io: PollEvented<CanBCMSocket>,
+    io: PollEvented2<CanBCMSocket>,
 }
 
 pub trait IntoBcmStream {
@@ -462,25 +539,26 @@ pub trait IntoBcmStream {
 }
 
 impl BcmStream {
-    pub fn from(bcm_socket: CanBCMSocket, handle: &Handle) -> io::Result<BcmStream> {
-        let io = try!(PollEvented::new(bcm_socket, handle));
-        Ok(BcmStream { io: io })
+    pub fn from(bcm_socket: CanBCMSocket) -> BcmStream {
+        let io = PollEvented2::new(bcm_socket);
+        BcmStream { io: io }
     }
 }
 
-impl futures::stream::Stream for BcmStream {
+impl Stream for BcmStream {
     type Item = BcmMsgHead;
     type Error = io::Error;
+
     fn poll(&mut self) -> futures::Poll<Option<Self::Item>, Self::Error> {
-        if let futures::Async::NotReady = self.io.poll_read() {
-            return Ok(futures::Async::NotReady);
-        }
+        let ready = Ready::readable();
+
+        try_ready!(self.io.poll_read_ready(ready));
 
         match self.io.get_ref().read_msg() {
             Ok(n) => Ok(futures::Async::Ready(Some(n))),
             Err(e) => {
                 if e.kind() == io::ErrorKind::WouldBlock {
-                    self.io.need_read();
+                    self.io.clear_read_ready(ready);
                     return Ok(futures::Async::NotReady);
                 }
                 return Err(e);

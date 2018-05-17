@@ -47,6 +47,7 @@
 #[macro_use]
 extern crate bitflags;
 extern crate byte_conv;
+#[macro_use]
 extern crate futures;
 extern crate hex;
 extern crate itertools;
