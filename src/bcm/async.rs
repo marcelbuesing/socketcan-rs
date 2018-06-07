@@ -204,13 +204,13 @@ impl Stream for BcmFrameStream {
                     Ok(futures::Async::Ready(Some(frame)))
                 } else {
                     // This happens e.g. when a timed out msg is received
-                    self.io.clear_read_ready(ready);
+                    self.io.clear_read_ready(ready)?;
                     Ok(futures::Async::NotReady)
                 }
             }
             Err(e) => {
                 if e.kind() == io::ErrorKind::WouldBlock {
-                    self.io.clear_read_ready(ready);
+                    self.io.clear_read_ready(ready)?;
                     return Ok(futures::Async::NotReady);
                 }
                 return Err(e);
@@ -558,7 +558,7 @@ impl Stream for BcmStream {
             Ok(n) => Ok(futures::Async::Ready(Some(n))),
             Err(e) => {
                 if e.kind() == io::ErrorKind::WouldBlock {
-                    self.io.clear_read_ready(ready);
+                    self.io.clear_read_ready(ready)?;
                     return Ok(futures::Async::NotReady);
                 }
                 return Err(e);
