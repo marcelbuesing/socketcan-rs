@@ -219,6 +219,32 @@ impl Stream for BcmFrameStream {
     }
 }
 
+impl Evented for BcmFrameStream {
+    fn register(
+        &self,
+        poll: &Poll,
+        token: Token,
+        interest: Ready,
+        opts: PollOpt,
+    ) -> io::Result<()> {
+        self.io.get_ref().register(poll, token, interest, opts)
+    }
+
+    fn reregister(
+        &self,
+        poll: &Poll,
+        token: Token,
+        interest: Ready,
+        opts: PollOpt,
+    ) -> io::Result<()> {
+        self.io.get_ref().reregister(poll, token, interest, opts)
+    }
+
+    fn deregister(&self, poll: &Poll) -> io::Result<()> {
+        self.io.get_ref().deregister(poll)
+    }
+}
+
 impl CanBCMSocket {
     /// Open a named CAN device non blocking.
     ///
