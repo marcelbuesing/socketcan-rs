@@ -613,6 +613,12 @@ impl CanFrame {
         }
     }
 
+    /// Return the raw CAN ID as stored in the frame (without EFF/RTR/ERR flags)
+    #[inline]
+    pub fn id_raw(&self) -> u32 {
+        self._id
+    }
+
     /// Return the error message
     #[inline]
     pub fn err(&self) -> u32 {
