@@ -411,7 +411,11 @@ impl CanSocket {
         let rval = unsafe {
             // we initialize tv calling ioctl, passing this responsibility on
             ts = uninitialized();
-            libc::ioctl(self.fd, SIOCGSTAMPNS as c_ulong, &mut ts as *mut timespec)
+            libc::ioctl(
+                self.fd,
+                SIOCGSTAMPNS as c_ulong as i32, // Not working with MUSL build otherwise
+                &mut ts as *mut timespec,
+            )
         };
 
         if rval == -1 {
