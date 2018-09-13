@@ -43,6 +43,8 @@
 
 // clippy: do not warn about things like "SocketCAN" inside the docs
 #![cfg_attr(feature = "cargo-clippy", allow(doc_markdown))]
+#![feature(arbitrary_self_types, futures_api, pin)]
+
 
 mod err;
 pub mod bcm_tokio;

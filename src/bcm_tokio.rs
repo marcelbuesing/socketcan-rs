@@ -5,15 +5,17 @@ use libc::{
 
 use futures;
 use futures::Stream;
+use futures::task::{Context, Poll};
 use futures::try_ready;
 use mio::unix::EventedFd;
-use mio::{Evented, Poll, PollOpt, Ready, Token};
+use mio::{Evented, PollOpt, Ready, Token};
 use nix::net::if_::if_nametoindex;
 pub use crate::nl::CanInterface;
 use std::collections::VecDeque;
 use std::fmt;
 use std::io::{Error, ErrorKind};
 use std::mem::size_of;
+use std::pin::PinMut;
 use std::{io, slice, time};
 use tokio::reactor::PollEvented2;
 
@@ -179,16 +181,16 @@ impl BcmFrameStream {
 
 impl Stream for BcmFrameStream {
     type Item = CanFrame;
-    type Error = io::Error;
+//    type Error = io::Error;
 
-    fn poll(&mut self) -> futures::Poll<Option<Self::Item>, Self::Error> {
+    fn poll_next(self: PinMut<Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         let ready = Ready::readable();
 
         // Buffer still contains frames
         // after testing this it looks like the recv_msg will never contain
         // more than one msg, therefore the buffer is basically never filled
         if let Some(frame) = self.frame_buffer.pop_front() {
-            return Ok(futures::Async::Ready(Some(frame)));
+            return Ok(Poll::Ready(Some(frame)));
         }
 
         try_ready!(self.io.poll_read_ready(ready));
@@ -202,17 +204,17 @@ impl Stream for BcmFrameStream {
                             self.frame_buffer.push_back(*frame)
                         }
                     }
-                    Ok(futures::Async::Ready(Some(frame)))
+                    Ok(Poll::Ready(Some(frame)))
                 } else {
                     // This happens e.g. when a timed out msg is received
                     self.io.clear_read_ready(ready)?;
-                    Ok(futures::Async::NotReady)
+                    Ok(Poll::NotReady)
                 }
             }
             Err(e) => {
                 if e.kind() == io::ErrorKind::WouldBlock {
                     self.io.clear_read_ready(ready)?;
-                    return Ok(futures::Async::NotReady);
+                    return Ok(Poll::NotReady);
                 }
                 return Err(e);
             }
@@ -223,7 +225,7 @@ impl Stream for BcmFrameStream {
 impl Evented for BcmFrameStream {
     fn register(
         &self,
-        poll: &Poll,
+        poll: &Poll<CanFrame>,
         token: Token,
         interest: Ready,
         opts: PollOpt,
@@ -233,7 +235,7 @@ impl Evented for BcmFrameStream {
 
     fn reregister(
         &self,
-        poll: &Poll,
+        poll: &Poll<CanFrame>,
         token: Token,
         interest: Ready,
         opts: PollOpt,
@@ -241,7 +243,7 @@ impl Evented for BcmFrameStream {
         self.io.get_ref().reregister(poll, token, interest, opts)
     }
 
-    fn deregister(&self, poll: &Poll) -> io::Result<()> {
+    fn deregister(&self, poll: &Poll<CanFrame>) -> io::Result<()> {
         self.io.get_ref().deregister(poll)
     }
 }
@@ -525,7 +527,7 @@ impl CanBCMSocket {
 impl Evented for CanBCMSocket {
     fn register(
         &self,
-        poll: &Poll,
+        poll: &Poll<CanFrame>,
         token: Token,
         interest: Ready,
         opts: PollOpt,
@@ -535,7 +537,7 @@ impl Evented for CanBCMSocket {
 
     fn reregister(
         &self,
-        poll: &Poll,
+        poll: &Poll<CanFrame>,
         token: Token,
         interest: Ready,
         opts: PollOpt,
@@ -543,7 +545,7 @@ impl Evented for CanBCMSocket {
         EventedFd(&self.fd).reregister(poll, token, interest, opts)
     }
 
-    fn deregister(&self, poll: &Poll) -> io::Result<()> {
+    fn deregister(&self, poll: &Poll<CanFrame>) -> io::Result<()> {
         EventedFd(&self.fd).deregister(poll)
     }
 }
@@ -574,19 +576,19 @@ impl BcmStream {
 
 impl Stream for BcmStream {
     type Item = BcmMsgHead;
-    type Error = io::Error;
+    //type Error = io::Error;
 
-    fn poll(&mut self) -> futures::Poll<Option<Self::Item>, Self::Error> {
+    fn poll_next(self: PinMut<Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         let ready = Ready::readable();
 
         try_ready!(self.io.poll_read_ready(ready));
 
         match self.io.get_ref().read_msg() {
-            Ok(n) => Ok(futures::Async::Ready(Some(n))),
+            Ok(n) => Ok(Poll::Ready(Some(n))),
             Err(e) => {
                 if e.kind() == io::ErrorKind::WouldBlock {
                     self.io.clear_read_ready(ready)?;
-                    return Ok(futures::Async::NotReady);
+                    return Ok(Poll::NotReady);
                 }
                 return Err(e);
             }
