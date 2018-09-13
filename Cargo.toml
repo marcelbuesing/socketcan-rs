@@ -6,6 +6,7 @@ license = "MIT"
 name = "socketcan"
 repository = "https://github.com/mbr/socketcan-rs"
 version = "2.0.0"
+edition = "2018"
 
 [dependencies]
 bitflags = "1.0"

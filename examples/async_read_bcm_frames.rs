@@ -1,8 +1,5 @@
-extern crate futures;
-extern crate socketcan;
-extern crate tokio;
 use futures::stream::Stream;
-use socketcan::bcm::async::*;
+use socketcan::bcm_tokio::*;
 use socketcan::FrameFlags;
 use std::time;
 

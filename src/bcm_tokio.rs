@@ -5,10 +5,11 @@ use libc::{
 
 use futures;
 use futures::Stream;
+use futures::try_ready;
 use mio::unix::EventedFd;
 use mio::{Evented, Poll, PollOpt, Ready, Token};
 use nix::net::if_::if_nametoindex;
-pub use nl::CanInterface;
+pub use crate::nl::CanInterface;
 use std::collections::VecDeque;
 use std::fmt;
 use std::io::{Error, ErrorKind};
@@ -16,7 +17,7 @@ use std::mem::size_of;
 use std::{io, slice, time};
 use tokio::reactor::PollEvented2;
 
-use {
+use crate::{
     c_timeval_new, CanAddr, CanFrame, CanSocketOpenError, FrameFlags, AF_CAN, CAN_BCM, PF_CAN,
     SOCK_DGRAM,
 };

@@ -44,23 +44,8 @@
 // clippy: do not warn about things like "SocketCAN" inside the docs
 #![cfg_attr(feature = "cargo-clippy", allow(doc_markdown))]
 
-#[macro_use]
-extern crate bitflags;
-extern crate byte_conv;
-#[macro_use]
-extern crate futures;
-extern crate hex;
-extern crate itertools;
-extern crate libc;
-extern crate mio;
-extern crate netlink_rs;
-extern crate nix;
-extern crate tokio;
-extern crate try_from;
-
 mod err;
-pub use err::{CanError, CanErrorDecodingFailure};
-pub mod bcm;
+pub mod bcm_tokio;
 pub mod dump;
 mod nl;
 mod util;
@@ -68,16 +53,21 @@ mod util;
 #[cfg(test)]
 mod tests;
 
-use libc::{bind, c_int, c_short, c_uint, c_ulong, c_void, close, fcntl, read, sockaddr, socket,
-           suseconds_t, time_t, timespec, timeval, write, EINPROGRESS, F_GETFL, F_SETFL,
-           O_NONBLOCK, SOCK_RAW, SOL_SOCKET, SO_RCVTIMEO, SO_SNDTIMEO};
+pub use crate::err::{CanError, CanErrorDecodingFailure};
+
+use bitflags::bitflags;
 use itertools::Itertools;
+use libc::{
+    bind, c_int, c_short, c_uint, c_ulong, c_void, close, fcntl, read, sockaddr, socket,
+    suseconds_t, time_t, timespec, timeval, write, EINPROGRESS, F_GETFL, F_SETFL, O_NONBLOCK,
+    SOCK_RAW, SOL_SOCKET, SO_RCVTIMEO, SO_SNDTIMEO,
+};
 use nix::net::if_::if_nametoindex;
-pub use nl::CanInterface;
-use std::{error, fmt, io, time};
+pub use crate::nl::CanInterface;
 use std::mem::{size_of, uninitialized};
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
-use util::{set_socket_option, set_socket_option_mult};
+use std::{error, fmt, io, time};
+use crate::util::{set_socket_option, set_socket_option_mult};
 
 /// Check an error return value for timeouts.
 ///

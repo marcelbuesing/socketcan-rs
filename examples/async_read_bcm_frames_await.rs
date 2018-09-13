@@ -1,11 +1,7 @@
 #![feature(proc_macro, proc_macro_non_items, generators)]
 
-extern crate futures_await as futures;
-extern crate socketcan;
-extern crate tokio;
-
 use futures::prelude::*;
-use socketcan::bcm::async::*;
+use socketcan::bcm_tokio::*;
 use socketcan::FrameFlags;
 use std::time;
 
