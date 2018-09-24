@@ -340,8 +340,9 @@ impl CanBCMSocket {
             _frames: frames,
         };
 
+         let tx_msg_ptr = tx_msg as *const TxMsg;
+
         let write_rv = unsafe {
-            let tx_msg_ptr = tx_msg as *const TxMsg;
             write(self.fd, tx_msg_ptr as *const c_void, size_of::<TxMsg>())
         };
 
@@ -472,8 +473,8 @@ impl CanBCMSocket {
             _frames: frames,
         };
 
+        let msg_ptr = msg as *const BcmMsgHead;
         let write_rv = unsafe {
-            let msg_ptr = msg as *const BcmMsgHead;
             write(self.fd, msg_ptr as *const c_void, size_of::<BcmMsgHead>())
         };
 
