@@ -1,3 +1,5 @@
+cargo-features = ["edition"]
+
 [package]
 authors = ["Marc Brinkmann <git@marcbrinkmann.de>"]
 description = "Linux SocketCAN library. Send and receive CAN frames via CAN bus on Linux."
