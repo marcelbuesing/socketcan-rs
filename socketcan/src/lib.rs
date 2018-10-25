@@ -45,7 +45,6 @@
 #![cfg_attr(feature = "cargo-clippy", allow(doc_markdown))]
 
 mod err;
-pub mod bcm_tokio;
 pub mod dump;
 mod nl;
 mod util;
@@ -113,22 +112,22 @@ impl<E: fmt::Debug> ShouldRetry for io::Result<E> {
 }
 
 // constants stolen from C headers
-const AF_CAN: c_int = 29;
-const PF_CAN: c_int = 29;
-const CAN_RAW: c_int = 1;
-const CAN_BCM: c_int = 2;
-const SOL_CAN_BASE: c_int = 100;
-const SOL_CAN_RAW: c_int = SOL_CAN_BASE + CAN_RAW;
-const CAN_RAW_FILTER: c_int = 1;
-const CAN_RAW_ERR_FILTER: c_int = 2;
-const CAN_RAW_LOOPBACK: c_int = 3;
-const CAN_RAW_RECV_OWN_MSGS: c_int = 4;
+pub const AF_CAN: c_int = 29;
+pub const PF_CAN: c_int = 29;
+pub const CAN_RAW: c_int = 1;
+pub const CAN_BCM: c_int = 2;
+pub const SOL_CAN_BASE: c_int = 100;
+pub const SOL_CAN_RAW: c_int = SOL_CAN_BASE + CAN_RAW;
+pub const CAN_RAW_FILTER: c_int = 1;
+pub const CAN_RAW_ERR_FILTER: c_int = 2;
+pub const CAN_RAW_LOOPBACK: c_int = 3;
+pub const CAN_RAW_RECV_OWN_MSGS: c_int = 4;
 // unused:
 // const CAN_RAW_FD_FRAMES: c_int = 5;
 const CAN_RAW_JOIN_FILTERS: c_int = 6;
 
 /// datagram (conn.less) socket
-const SOCK_DGRAM: c_int = 2;
+pub const SOCK_DGRAM: c_int = 2;
 
 // get timestamp in a struct timeval (us accuracy)
 // const SIOCGSTAMP: c_int = 0x8906;
@@ -165,7 +164,7 @@ pub const ERR_MASK_ALL: u32 = ERR_MASK;
 /// an error mask that will cause SocketCAN to silently drop all errors
 pub const ERR_MASK_NONE: u32 = 0;
 
-fn c_timeval_new(t: time::Duration) -> timeval {
+pub fn c_timeval_new(t: time::Duration) -> timeval {
     timeval {
         tv_sec: t.as_secs() as time_t,
         tv_usec: (t.subsec_nanos() / 1000) as suseconds_t,
@@ -174,11 +173,11 @@ fn c_timeval_new(t: time::Duration) -> timeval {
 
 #[derive(Debug)]
 #[repr(C)]
-struct CanAddr {
-    _af_can: c_short,
-    if_index: c_int, // address familiy,
-    rx_id: u32,
-    tx_id: u32,
+pub struct CanAddr {
+    pub _af_can: c_short,
+    pub if_index: c_int, // address familiy,
+    pub rx_id: u32,
+    pub tx_id: u32,
 }
 
 #[derive(Debug)]
