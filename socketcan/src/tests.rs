@@ -14,7 +14,6 @@ mod vcan_tests {
     use futures::stream::Stream;
     use self::tokio_core::reactor::Core;
     use {CanFrame, CanInterface, CanSocket, ERR_MASK_ALL, ERR_MASK_NONE};
-    use bcm::async::*;
     use std::time;
     use ShouldRetry;
 

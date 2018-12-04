@@ -1,5 +1,5 @@
 use futures::stream::Stream;
-use socketcan::bcm_tokio::*;
+use socketcan_tokio::bcm::*;
 use socketcan::FrameFlags;
 use std::time;
 

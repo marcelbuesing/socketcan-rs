@@ -363,11 +363,12 @@ impl CanBCMSocket {
     /// use tokio::prelude::*;
     /// use std::time;
     /// use socketcan::FrameFlags;
-    /// use socketcan::bcm::async::*;
+    /// use socketcan_tokio::bcm::*;
     ///
     /// let ival = time::Duration::from_millis(1);
     /// let socket = CanBCMSocket::open_nb("vcan0").unwrap();
     /// let f = socket.filter_id_incoming_frames(0x123, ival, ival, FrameFlags::EFF_FLAG).unwrap()
+    ///       .map_err(|_| ())
     ///       .for_each(|frame| {
     ///          println!("Frame {:?}", frame);
     ///          Ok(())
@@ -397,7 +398,7 @@ impl CanBCMSocket {
     /// use tokio::prelude::*;
     /// use std::time;
     /// use socketcan::FrameFlags;
-    /// use socketcan::bcm::async::*;
+    /// use socketcan_tokio::bcm::*;
     ///
     /// let socket = CanBCMSocket::open_nb("vcan0").unwrap();
     /// let ival = time::Duration::from_millis(1);
@@ -428,7 +429,7 @@ impl CanBCMSocket {
     /// use tokio::prelude::*;
     /// use std::time;
     /// use socketcan::FrameFlags;
-    /// use socketcan::bcm::async::*;
+    /// use socketcan_tokio::bcm::*;
     ///
     /// let socket = CanBCMSocket::open_nb("vcan0").unwrap();
     /// let ival = time::Duration::from_millis(1);
