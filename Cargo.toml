@@ -2,5 +2,6 @@
 
 members = [
     "socketcan",
+    "socketcan-romio",
     "socketcan-tokio",
 ]

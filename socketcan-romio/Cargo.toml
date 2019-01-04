@@ -1,11 +1,11 @@
 cargo-features = ["edition"]
 
 [package]
-authors = ["Marcel Buesing <buesing.marcel@googlemail.com>"]
+authors = ["Marcel Buesing <buesing.marcel@googlemail.com>>"]
 description = "Linux SocketCAN library. Send and receive CAN frames via CAN bus on Linux."
-documentation = "https://docs.rs/socketcan-tokio"
+documentation = "https://docs.rs/socketcan-romio"
 license = "MIT"
-name = "socketcan-tokio"
+name = "socketcan-romio"
 repository = "https://github.com/mbr/socketcan-rs"
 version = "2.0.0"
 edition = "2018"
@@ -13,19 +13,19 @@ edition = "2018"
 [dependencies]
 bitflags = "1.0"
 byte_conv = "0.1"
-futures = "0.1"
 hex = "^0.2"
 itertools = "^0.7"
 libc = "^0.2"
 mio = "0.6"
 netlink-rs = { git = "https://github.com/netlink-rs/netlink-rs", rev = "c008b4e385e3c0a114ec907ca28ad4fe33233ed5" }
 nix = "^0.11"
-tokio = "0.1"
+romio = { git = "https://github.com/marcelbuesing/romio.git", rev = "5fc61da10411d578ecc6c4cd862e1471d510c96c" }
 socketcan = { path = "../socketcan" }
 try_from = "0.2"
 
-[dev-dependencies]
-futures-await = "0.1"
+[dependencies.futures]
+version = "0.3.0-alpha.11"
+package = "futures-preview"
 
 [features]
 vcan_tests = []
