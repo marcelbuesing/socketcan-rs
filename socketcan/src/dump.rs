@@ -12,7 +12,9 @@
 //! Can be parsed by a `Reader` object. The API is inspired by the
 //! [csv](https://crates.io/crates/csv) crate.
 
+use crate::CanMessageId;
 use std::{fs, io, path};
+use std::convert::TryFrom;
 use hex::FromHex;
 
 // cannot be generic, because from_str_radix is not part of any Trait
@@ -148,11 +150,8 @@ impl<R: io::BufRead> Reader<R> {
             Vec::from_hex(&can_data).map_err(|_| ParseError::InvalidCanFrame)?
         };
         let frame = super::CanFrame::new((parse_raw(can_id, 16)
-                                                  .ok_or
-
-
-                                                  (ParseError::InvalidCanFrame))?
-                                              as u32,
+                                                  .and_then(|id| CanMessageId::try_from(id as u32).ok()))
+                                                  .ok_or(ParseError::InvalidCanFrame)?,
                                               &data,
                                               rtr,
                                               // FIXME: how are error frames saved?

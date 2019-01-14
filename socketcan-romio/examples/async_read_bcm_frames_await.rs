@@ -5,7 +5,7 @@ use std::io;
 use futures::executor;
 use futures::StreamExt;
 use socketcan_romio::bcm::*;
-use socketcan::FrameFlags;
+use socketcan::CanMessageId;
 use std::time;
 
 fn main() -> io::Result<()> {
@@ -15,7 +15,7 @@ fn main() -> io::Result<()> {
     executor::block_on(async {
 
         let mut incoming = socket
-            .filter_id_incoming_frames(0x123, ival, ival, FrameFlags::empty())
+            .filter_id_incoming_frames(0x123.into(), ival, ival)
             .unwrap();
 
          while let Some(frame) = await!(incoming.next()) {

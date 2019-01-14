@@ -43,6 +43,7 @@
 
 // clippy: do not warn about things like "SocketCAN" inside the docs
 #![cfg_attr(feature = "cargo-clippy", allow(doc_markdown))]
+#![feature(try_from)]
 
 mod err;
 pub mod dump;
@@ -52,6 +53,7 @@ mod util;
 #[cfg(test)]
 mod tests;
 
+use core::convert::TryFrom;
 pub use crate::err::{CanError, CanErrorDecodingFailure};
 
 use bitflags::bitflags;
@@ -151,6 +153,7 @@ bitflags! {
 
 /// valid bits in standard frame id
 pub const SFF_MASK: u32 = 0x000007ff;
+const SFF_MASK_U16: u16 = 0x07ff;
 
 /// valid bits in extended frame id
 pub const EFF_MASK: u32 = 0x1fffffff;
@@ -178,6 +181,54 @@ pub struct CanAddr {
     pub if_index: c_int, // address familiy,
     pub rx_id: u32,
     pub tx_id: u32,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd)]
+pub enum CanMessageId {
+    /// Standard Frame Format (11-bit identifier)
+    SFF(u16),
+    /// Extended Frame Format (29-bit identifier)
+    EFF(u32)
+}
+
+impl CanMessageId {
+    pub fn with_eff_bit(&self) -> u32 {
+        match self {
+            CanMessageId::SFF(id) => *id as u32,
+            CanMessageId::EFF(id) => *id | FrameFlags::EFF_FLAG.bits(),
+        }
+    }
+}
+
+impl From<u16> for CanMessageId {
+
+    fn from(id: u16) -> CanMessageId {
+        match id {
+            0 ... SFF_MASK_U16 => CanMessageId::SFF(id),
+            SFF_MASK_U16 ... std::u16::MAX => CanMessageId::EFF(id as u32),
+        }
+    }
+}
+
+impl TryFrom<u32> for CanMessageId {
+    type Error = ConstructionError;
+
+    fn try_from(id: u32) -> Result<CanMessageId, ConstructionError> {
+        match id {
+            0 ... SFF_MASK => Ok(CanMessageId::SFF(id as u16)),
+            SFF_MASK ... EFF_MASK => Ok(CanMessageId::EFF(id)),
+            _ => Err(ConstructionError::IDTooLarge),
+        }
+    }
+}
+
+impl From<CanMessageId> for u32 {
+    fn from(id: CanMessageId) -> u32 {
+        match id {
+            CanMessageId::SFF(id) => id as u32,
+            CanMessageId::EFF(id) => id,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -559,21 +610,27 @@ pub struct CanFrame {
 }
 
 impl CanFrame {
-    pub fn new(id: u32, data: &[u8], rtr: bool, err: bool) -> Result<CanFrame, ConstructionError> {
-        let mut _id = id;
+    pub fn new(message_id: CanMessageId, data: &[u8], rtr: bool, err: bool) -> Result<CanFrame, ConstructionError> {
 
         if data.len() > 8 {
             return Err(ConstructionError::TooMuchData);
         }
 
-        if id > EFF_MASK {
-            return Err(ConstructionError::IDTooLarge);
-        }
-
-        // set EFF_FLAG on large message
-        if id > SFF_MASK {
-            _id |= FrameFlags::EFF_FLAG.bits();
-        }
+        let mut _id = match message_id {
+            CanMessageId::SFF(id) => {
+                let id = id as u32;
+                if id > SFF_MASK {
+                    return Err(ConstructionError::IDTooLarge);
+                }
+                id
+            },
+            CanMessageId::EFF(id) => {
+                if id > EFF_MASK {
+                    return Err(ConstructionError::IDTooLarge);
+                }
+                id | FrameFlags::EFF_FLAG.bits()
+            },
+        };
 
         if rtr {
             _id |= FrameFlags::RTR_FLAG.bits();

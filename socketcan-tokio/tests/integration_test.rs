@@ -12,7 +12,7 @@ use std::time;
 
 fn send_frame() {
     let cs = CanSocket::open("vcan0").unwrap();
-    let frame = CanFrame::new(0x123, &[], false, false).unwrap();
+    let frame = CanFrame::new(0x123.into(), &[], false, false).unwrap();
     cs.write_frame(&frame).unwrap();
 }
 
@@ -20,7 +20,7 @@ fn send_frame() {
 fn vcan0_bcm_filter_id_incoming_frames() {
     let cbs = CanBCMSocket::open_nb("vcan0").unwrap();
     let ival = time::Duration::from_millis(1);
-    cbs.filter_id(0x123, ival, ival, Default::default()).unwrap();
+    cbs.filter_id(0x123.into(), ival, ival).unwrap();
 
     let next_frame =
         cbs.incoming_frames()
@@ -44,13 +44,13 @@ fn vcan0_bcm_filter_id_incoming_frames() {
 fn vcan0_bcm_filter_delete() {
     let cbs = CanBCMSocket::open_nb("vcan0").unwrap();
     let ival = time::Duration::from_millis(1);
-    cbs.filter_id(0x123, ival, ival, Default::default()).unwrap();
+    cbs.filter_id(0x123.into(), ival, ival).unwrap();
 
-    cbs.filter_delete(0x123).unwrap();
+    cbs.filter_delete(0x123.into()).unwrap();
 }
 
 #[test]
 fn vcan0_bcm_filter_delete_err() {
     let cbs = CanBCMSocket::open_nb("vcan0").unwrap();
-    assert!(cbs.filter_delete(0x124).is_err())
+    assert!(cbs.filter_delete(0x124.into()).is_err())
 }

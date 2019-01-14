@@ -22,7 +22,7 @@ use mio;
 
 
 use socketcan::{
-    c_timeval_new, CanAddr, CanFrame, CanSocketOpenError, FrameFlags, AF_CAN, CAN_BCM, PF_CAN,
+    c_timeval_new, CanMessageId, CanAddr, CanFrame, CanSocketOpenError, FrameFlags, AF_CAN, CAN_BCM, PF_CAN,
     SOCK_DGRAM,
 };
 
@@ -316,15 +316,14 @@ impl CanBCMSocket {
     /// Create a content filter subscription, filtering can frames by can_id.
     pub fn filter_id(
         &self,
-        can_id: c_uint,
+        can_id: CanMessageId,
         ival1: time::Duration,
         ival2: time::Duration,
-        frame_flags: FrameFlags,
     ) -> io::Result<()> {
         let _ival1 = c_timeval_new(ival1);
         let _ival2 = c_timeval_new(ival2);
 
-        let frames = [CanFrame::new(0x0, &[], false, false).unwrap(); MAX_NFRAMES as usize];
+        let frames = [CanFrame::new(CanMessageId::SFF(0u16), &[], false, false).unwrap(); MAX_NFRAMES as usize];
         let msg = BcmMsgHeadFrameLess {
             _opcode: RX_SETUP,
             _flags: SETTIMER | RX_FILTER_ID,
@@ -333,7 +332,7 @@ impl CanBCMSocket {
             _pad: 0,
             _ival1: _ival1,
             _ival2: _ival2,
-            _can_id: can_id | frame_flags.bits(),
+            _can_id: can_id.with_eff_bit(),
             _nframes: 0,
         };
 
@@ -381,12 +380,11 @@ impl CanBCMSocket {
     ///
     pub fn filter_id_incoming_frames(
         self,
-        can_id: c_uint,
+        can_id: CanMessageId,
         ival1: time::Duration,
         ival2: time::Duration,
-        frame_flags: FrameFlags,
     ) -> io::Result<BcmFrameStream> {
-        self.filter_id(can_id, ival1, ival2, frame_flags)?;
+        self.filter_id(can_id, ival1, ival2)?;
         Ok(self.incoming_frames())
     }
 
@@ -460,8 +458,8 @@ impl CanBCMSocket {
     }
 
     /// Remove a content filter subscription.
-    pub fn filter_delete(&self, can_id: c_uint) -> io::Result<()> {
-        let frames = [CanFrame::new(0x0, &[], false, false).unwrap(); MAX_NFRAMES as usize];
+    pub fn filter_delete(&self, can_id: CanMessageId) -> io::Result<()> {
+        let frames = [CanFrame::new(CanMessageId::EFF(0x0), &[], false, false).unwrap(); MAX_NFRAMES as usize];
 
         let msg = &BcmMsgHead {
             _opcode: RX_DELETE,
@@ -469,7 +467,7 @@ impl CanBCMSocket {
             _count: 0,
             _ival1: c_timeval_new(time::Duration::new(0, 0)),
             _ival2: c_timeval_new(time::Duration::new(0, 0)),
-            _can_id: can_id,
+            _can_id: can_id.with_eff_bit(),
             _nframes: 0,
             #[cfg(all(target_pointer_width = "32"))]
             _pad: 0,
@@ -494,7 +492,7 @@ impl CanBCMSocket {
     pub fn read_msg(&self) -> io::Result<BcmMsgHead> {
         let ival1 = c_timeval_new(time::Duration::from_millis(0));
         let ival2 = c_timeval_new(time::Duration::from_millis(0));
-        let frames = [CanFrame::new(0x0, &[], false, false).unwrap(); MAX_NFRAMES as usize];
+        let frames = [CanFrame::new(CanMessageId::EFF(0x0), &[], false, false).unwrap(); MAX_NFRAMES as usize];
         let mut msg = BcmMsgHead {
             _opcode: 0,
             _flags: 0,

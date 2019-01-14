@@ -14,7 +14,7 @@ fn main() {
     let f = async_block! {
         #[async]
         for frame in socket
-            .filter_id_incoming_frames(0x123, ival, ival, FrameFlags::empty())
+            .filter_id_incoming_frames(0x123.into(), ival, ival)
             .unwrap()
             .map_err(|err| eprintln!("IO error {:?}", err)) {
 

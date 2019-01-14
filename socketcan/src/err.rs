@@ -1,7 +1,7 @@
 // information from https://raw.githubusercontent.com/torvalds/linux/master/
 //                  /include/uapi/linux/can/error.h
 
-use try_from::TryFrom;
+use std::convert::TryFrom;
 use super::CanFrame;
 use std::error::Error;
 use std::{error, fmt};
@@ -200,7 +200,7 @@ impl fmt::Display for ControllerProblem {
 }
 
 impl TryFrom<u8> for ControllerProblem {
-    type Err = CanErrorDecodingFailure;
+    type Error = CanErrorDecodingFailure;
 
     fn try_from(val: u8) -> Result<ControllerProblem, CanErrorDecodingFailure> {
         Ok(match val {
@@ -274,7 +274,7 @@ impl fmt::Display for ViolationType {
 }
 
 impl TryFrom<u8> for ViolationType {
-    type Err = CanErrorDecodingFailure;
+    type Error = CanErrorDecodingFailure;
 
     fn try_from(val: u8) -> Result<ViolationType, CanErrorDecodingFailure> {
         Ok(match val {
@@ -387,7 +387,7 @@ impl fmt::Display for Location {
     }
 }
 impl TryFrom<u8> for Location {
-    type Err = CanErrorDecodingFailure;
+    type Error = CanErrorDecodingFailure;
 
     fn try_from(val: u8) -> Result<Location, CanErrorDecodingFailure> {
         Ok(match val {
@@ -430,7 +430,7 @@ pub enum TransceiverError {
 }
 
 impl TryFrom<u8> for TransceiverError {
-    type Err = CanErrorDecodingFailure;
+    type Error = CanErrorDecodingFailure;
 
     fn try_from(val: u8) -> Result<TransceiverError, CanErrorDecodingFailure> {
         Ok(match val {
