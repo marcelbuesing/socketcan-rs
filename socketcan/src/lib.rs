@@ -185,12 +185,22 @@ pub struct CanAddr {
     pub tx_id: u32,
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd)]
+/// 11-bit or 29-bit identifier of can frame.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Hash)]
 pub enum CanMessageId {
     /// Standard Frame Format (11-bit identifier)
     SFF(u16),
     /// Extended Frame Format (29-bit identifier)
     EFF(u32)
+}
+
+impl fmt::Display for CanMessageId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            CanMessageId::SFF(id) => write!(f, "{}", id),
+            CanMessageId::EFF(id) => write!(f, "{}", id),
+        }
+    }
 }
 
 impl CanMessageId {
