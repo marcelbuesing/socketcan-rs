@@ -45,6 +45,9 @@
 #![cfg_attr(feature = "cargo-clippy", allow(doc_markdown))]
 #![feature(try_from)]
 
+#[macro_use]
+extern crate bitflags;
+
 mod err;
 pub mod dump;
 mod nl;
@@ -56,7 +59,6 @@ mod tests;
 use core::convert::TryFrom;
 pub use crate::err::{CanError, CanErrorDecodingFailure};
 
-use bitflags::bitflags;
 use itertools::Itertools;
 use libc::{
     bind, c_int, c_short, c_uint, c_ulong, c_void, close, fcntl, read, sockaddr, socket,
