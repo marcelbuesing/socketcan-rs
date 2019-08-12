@@ -18,7 +18,7 @@ itertools = "^0.7"
 libc = "^0.2"
 mio = "0.6"
 netlink-rs = { git = "https://github.com/netlink-rs/netlink-rs", rev = "c008b4e385e3c0a114ec907ca28ad4fe33233ed5" }
-nix = "^0.11"
+nix = "^0.15"
 romio = { git = "https://github.com/marcelbuesing/romio.git", rev = "5fc61da10411d578ecc6c4cd862e1471d510c96c" }
 socketcan = { path = "../socketcan" }
 try_from = "0.2"
