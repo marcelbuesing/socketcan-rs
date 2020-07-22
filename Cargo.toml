@@ -9,9 +9,11 @@ version = "2.0.0"
 
 [dependencies]
 byte_conv = "0.1.1"
+embedded-hal = { git = "https://github.com/timokroeger/embedded-hal.git", branch = "can" }
 hex = "^0.2"
 itertools = "^0.4"
 libc = "^0.2"
+nb = "1.0"
 neli = "0.5.0-rc1"
 nix = "^0.5"
 try_from = "0.2.0"

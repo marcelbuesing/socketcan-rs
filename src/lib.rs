@@ -41,15 +41,15 @@
 //! is available through the `AsRawFd`, `IntoRawFd` and `FromRawFd`
 //! implementations.
 
-
-
 // clippy: do not warn about things like "SocketCAN" inside the docs
 #![cfg_attr(feature = "cargo-clippy", allow(doc_markdown))]
 
 extern crate byte_conv;
+extern crate embedded_hal;
 extern crate hex;
 extern crate itertools;
 extern crate libc;
+extern crate nb;
 extern crate neli;
 extern crate nix;
 extern crate try_from;
@@ -63,15 +63,17 @@ mod util;
 #[cfg(test)]
 mod tests;
 
-use libc::{c_int, c_short, c_void, c_uint, c_ulong, socket, SOCK_RAW, close, bind, sockaddr, read,
-           write, SOL_SOCKET, SO_RCVTIMEO, timespec, timeval, EINPROGRESS, SO_SNDTIMEO, time_t,
-           suseconds_t, fcntl, F_GETFL, F_SETFL, O_NONBLOCK};
 use itertools::Itertools;
+use libc::{
+    bind, c_int, c_short, c_uint, c_ulong, c_void, close, fcntl, read, sockaddr, socket,
+    suseconds_t, time_t, timespec, timeval, write, EINPROGRESS, F_GETFL, F_SETFL, O_NONBLOCK,
+    SOCK_RAW, SOL_SOCKET, SO_RCVTIMEO, SO_SNDTIMEO,
+};
 use nix::net::if_::if_nametoindex;
 pub use nl::CanInterface;
-use std::{error, fmt, io, time};
 use std::mem::{size_of, uninitialized};
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+use std::{error, fmt, io, time};
 use util::{set_socket_option, set_socket_option_mult};
 
 /// Check an error return value for timeouts.
@@ -131,7 +133,6 @@ const CAN_RAW_RECV_OWN_MSGS: c_int = 4;
 // const CAN_RAW_FD_FRAMES: c_int = 5;
 const CAN_RAW_JOIN_FILTERS: c_int = 6;
 
-
 // get timestamp in a struct timeval (us accuracy)
 // const SIOCGSTAMP: c_int = 0x8906;
 
@@ -155,7 +156,6 @@ pub const EFF_MASK: u32 = 0x1fffffff;
 
 /// valid bits in error frame
 pub const ERR_MASK: u32 = 0x1fffffff;
-
 
 /// an error mask that will cause SocketCAN to report all errors
 pub const ERR_MASK_ALL: u32 = ERR_MASK;
@@ -213,7 +213,6 @@ impl error::Error for CanSocketOpenError {
         }
     }
 }
-
 
 #[derive(Debug, Copy, Clone)]
 /// Error that occurs when creating CAN packets
@@ -300,9 +299,11 @@ impl CanSocket {
         let bind_rv;
         unsafe {
             let sockaddr_ptr = &addr as *const CanAddr;
-            bind_rv = bind(sock_fd,
-                           sockaddr_ptr as *const sockaddr,
-                           size_of::<CanAddr>() as u32);
+            bind_rv = bind(
+                sock_fd,
+                sockaddr_ptr as *const sockaddr,
+                size_of::<CanAddr>() as u32,
+            );
         }
 
         // FIXME: on fail, close socket (do not leak socketfds)
@@ -522,6 +523,23 @@ impl Drop for CanSocket {
     }
 }
 
+impl embedded_hal::can::Transmitter for CanSocket {
+    type Frame = CanFrame;
+    type Error = io::Error;
+    fn transmit(
+        &mut self,
+        frame: &Self::Frame,
+    ) -> Result<Option<Self::Frame>, nb::Error<Self::Error>> {
+        self.write_frame(frame).map(|_| None).map_err(|io_err| {
+            if io_err.kind() == io::ErrorKind::WouldBlock {
+                nb::Error::WouldBlock
+            } else {
+                nb::Error::Other(io_err)
+            }
+        })
+    }
+}
+
 /// CanFrame
 ///
 /// Uses the same memory layout as the underlying kernel struct for performance
@@ -565,7 +583,6 @@ impl CanFrame {
             _id |= EFF_FLAG;
         }
 
-
         if rtr {
             _id |= RTR_FLAG;
         }
@@ -582,13 +599,13 @@ impl CanFrame {
         }
 
         Ok(CanFrame {
-               _id: _id,
-               _data_len: data.len() as u8,
-               _pad: 0,
-               _res0: 0,
-               _res1: 0,
-               _data: full_data,
-           })
+            _id: _id,
+            _data_len: data.len() as u8,
+            _pad: 0,
+            _res0: 0,
+            _res1: 0,
+            _data: full_data,
+        })
     }
 
     /// Return the actual CAN ID (without EFF/RTR/ERR flags)
@@ -656,6 +673,33 @@ impl fmt::UpperHex for CanFrame {
     }
 }
 
+impl embedded_hal::can::Frame for CanFrame {
+    fn new_standard(id: u32, data: &[u8]) -> Self {
+        CanFrame::new(id, data, false, false).unwrap()
+    }
+    fn new_extended(id: u32, data: &[u8]) -> Self {
+        CanFrame::new(id, data, false, false).unwrap()
+    }
+    fn with_rtr(&mut self, dlc: usize) -> &mut Self {
+        unimplemented!()
+    }
+    fn is_extended(&self) -> bool {
+        self.is_extended()
+    }
+    fn is_remote_frame(&self) -> bool {
+        self.is_rtr()
+    }
+    fn id(&self) -> u32 {
+        self.id()
+    }
+    fn dlc(&self) -> usize {
+        self._data_len as usize
+    }
+    fn data(&self) -> &[u8] {
+        self.data()
+    }
+}
+
 /// CanFilter
 ///
 /// Contains an internal id and mask. Packets are considered to be matched by
@@ -671,8 +715,8 @@ impl CanFilter {
     /// Construct a new CAN filter.
     pub fn new(id: u32, mask: u32) -> Result<CanFilter, ConstructionError> {
         Ok(CanFilter {
-               _id: id,
-               _mask: mask,
-           })
+            _id: id,
+            _mask: mask,
+        })
     }
 }
