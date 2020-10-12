@@ -55,6 +55,7 @@ extern crate nix;
 extern crate try_from;
 
 mod err;
+use embedded_hal::can::Id;
 pub use err::{CanError, CanErrorDecodingFailure};
 pub mod dump;
 mod nl;
@@ -523,7 +524,7 @@ impl Drop for CanSocket {
     }
 }
 
-impl embedded_hal::can::Transmitter for CanSocket {
+impl embedded_hal::can::Can for CanSocket {
     type Frame = CanFrame;
     type Error = io::Error;
     fn transmit(
@@ -531,6 +532,15 @@ impl embedded_hal::can::Transmitter for CanSocket {
         frame: &Self::Frame,
     ) -> Result<Option<Self::Frame>, nb::Error<Self::Error>> {
         self.write_frame(frame).map(|_| None).map_err(|io_err| {
+            if io_err.kind() == io::ErrorKind::WouldBlock {
+                nb::Error::WouldBlock
+            } else {
+                nb::Error::Other(io_err)
+            }
+        })
+    }
+    fn receive(&mut self) -> nb::Result<Self::Frame, Self::Error> {
+        self.read_frame().map_err(|io_err| {
             if io_err.kind() == io::ErrorKind::WouldBlock {
                 nb::Error::WouldBlock
             } else {
@@ -674,29 +684,40 @@ impl fmt::UpperHex for CanFrame {
 }
 
 impl embedded_hal::can::Frame for CanFrame {
-    fn new_standard(id: u32, data: &[u8]) -> Self {
-        CanFrame::new(id, data, false, false).unwrap()
+    fn new(id: Id, data: &[u8]) -> Result<Self, ()> {
+        let id = match id {
+            Id::Standard(x) => x,
+            Id::Extended(x) => x,
+        };
+        CanFrame::new(id, data, false, false).map_err(|_err| ())
     }
-    fn new_extended(id: u32, data: &[u8]) -> Self {
-        CanFrame::new(id, data, false, false).unwrap()
+    fn new_remote(id: Id, dlc: usize) -> Result<Self, ()> {
+        let id = match id {
+            Id::Standard(x) => x,
+            Id::Extended(x) => x,
+        };
+        CanFrame::new(id, &[], true, false).map_err(|_err| ())
     }
-    fn with_rtr(&mut self, dlc: usize) -> &mut Self {
-        unimplemented!()
-    }
+
     fn is_extended(&self) -> bool {
         self.is_extended()
     }
     fn is_remote_frame(&self) -> bool {
         self.is_rtr()
     }
-    fn id(&self) -> u32 {
-        self.id()
-    }
+
     fn dlc(&self) -> usize {
         self._data_len as usize
     }
     fn data(&self) -> &[u8] {
         self.data()
+    }
+    fn id(&self) -> embedded_hal::can::Id {
+        if self.is_extended() {
+            Id::Extended(self.id())
+        } else {
+            Id::Standard(self.id())
+        }
     }
 }
 
