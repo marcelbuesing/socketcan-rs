@@ -51,7 +51,6 @@ extern crate embedded_can;
 extern crate hex;
 extern crate itertools;
 extern crate libc;
-extern crate netlink_rs;
 extern crate nix;
 extern crate try_from;
 
@@ -59,7 +58,6 @@ mod err;
 pub use embedded_can::{ExtendedId, Id, StandardId};
 pub use err::{CanError, CanErrorDecodingFailure};
 pub mod dump;
-mod nl;
 mod util;
 
 #[cfg(test)]
@@ -70,7 +68,6 @@ use libc::{c_int, c_short, c_void, c_uint, c_ulong, socket, SOCK_RAW, close, bin
            suseconds_t, fcntl, F_GETFL, F_SETFL, O_NONBLOCK};
 use itertools::Itertools;
 use nix::net::if_::if_nametoindex;
-pub use nl::CanInterface;
 use std::{error, fmt, io, time};
 use std::mem::{size_of, uninitialized};
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
