@@ -15,6 +15,8 @@
 use std::{fs, io, path};
 use hex::FromHex;
 
+use crate::{EFF_FLAG, SFF_MASK, Id, ExtendedId, StandardId};
+
 // cannot be generic, because from_str_radix is not part of any Trait
 fn parse_raw(bytes: &[u8], radix: u32) -> Option<u64> {
     ::std::str::from_utf8(bytes)
@@ -147,12 +149,17 @@ impl<R: io::BufRead> Reader<R> {
         } else {
             Vec::from_hex(&can_data).map_err(|_| ParseError::InvalidCanFrame)?
         };
-        let frame = super::CanFrame::new((parse_raw(can_id, 16)
-                                                  .ok_or
 
+        let can_id_raw= parse_raw(can_id, 16)
+            .ok_or(ParseError::InvalidCanFrame)? as u32;
 
-                                                  (ParseError::InvalidCanFrame))?
-                                              as u32,
+        let can_id = if can_id_raw> SFF_MASK {
+            Id::Extended(ExtendedId::new(can_id_raw | EFF_FLAG).ok_or(ParseError::InvalidCanFrame)?)
+        } else {
+            Id::Standard(StandardId::new(can_id_raw as u16).ok_or(ParseError::InvalidCanFrame)?)
+        };
+    
+        let frame = super::CanFrame::new(can_id,
                                               &data,
                                               rtr,
                                               // FIXME: how are error frames saved?
@@ -195,7 +202,7 @@ mod test {
 
             assert_eq!(rec1.t_us, 1469439874299591);
             assert_eq!(rec1.device, "can1");
-            assert_eq!(rec1.frame.id(), 0x080);
+            assert_eq!(rec1.frame.id_raw(), 0x080);
             assert_eq!(rec1.frame.is_rtr(), false);
             assert_eq!(rec1.frame.is_error(), false);
             assert_eq!(rec1.frame.is_extended(), false);
@@ -206,7 +213,7 @@ mod test {
             let rec2 = reader.next_record().unwrap().unwrap();
             assert_eq!(rec2.t_us, 1469439874299654);
             assert_eq!(rec2.device, "can1");
-            assert_eq!(rec2.frame.id(), 0x701);
+            assert_eq!(rec2.frame.id_raw(), 0x701);
             assert_eq!(rec2.frame.is_rtr(), false);
             assert_eq!(rec2.frame.is_error(), false);
             assert_eq!(rec2.frame.is_extended(), false);
