@@ -21,8 +21,4 @@ libc = "0.2"
 nix = "0.20"
 clap = "2.33"
 anyhow = "1.0"
-# Update this when 0.5.3 is released
-#neli = "0.5.3"
-neli = { git = "https://github.com/jbaublitz/neli.git" }
-
-
+neli = "0.5.3"

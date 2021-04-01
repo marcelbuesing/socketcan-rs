@@ -19,7 +19,6 @@ use neli::{
     },
     err::NlError,
     nl::{Nlmsghdr, NlPayload},
-    utils::U32Bitmask,
     rtnl::Ifinfomsg,
     types::RtBuffer,
     socket::*,
@@ -99,7 +98,7 @@ impl CanInterface {
         let sock = NlSocketHandle::connect(
             NlFamily::Route,
             Some(pid),
-            U32Bitmask::empty()
+            &[],
         )?;
         Ok(sock)
     }
